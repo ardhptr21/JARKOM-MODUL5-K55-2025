@@ -26,3 +26,9 @@ iptables -A INPUT -p icmp -j ACCEPT
 
 # Cek Rules
 iptables -L -v
+
+
+
+# Ngebug? coba Reset couter
+# iptables -Z
+# iptables -L -v -n
