@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Arahkan DNS ke Narya (atau Google sementara jika Narya belum siap)
+# ========= Arahkan DNS ke Narya (atau Google sementara jika Narya belum siap) ===========
 grep -qF 'nameserver 10.91.1.195' /etc/resolv.conf || echo 'nameserver 10.91.1.195' >> /etc/resolv.conf
 
 # Update dan Install DHCP Relay

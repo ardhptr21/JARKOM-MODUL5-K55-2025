@@ -7,7 +7,7 @@ apt install isc-dhcp-relay -y
 
 cat << EOF > /etc/default/isc-dhcp-relay
 SERVERS="10.91.1.194"
-INTERFACESv4="eth0 eth1 eth2"
+INTERFACESv4="eth0 eth1"
 EOF
 
 service isc-dhcp-relay restart
