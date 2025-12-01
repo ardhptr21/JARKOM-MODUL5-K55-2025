@@ -141,6 +141,7 @@ $TTL    604800
 www     IN      CNAME   arda.local.
 palantir    IN  A       10.91.1.234  ; IP Web Server 1
 ironhills   IN  A       10.91.1.218  ; IP Web Server 2
+```
 
 **Validasi:**
 1. Cek Ping Internet (Misi 2 No 1): Di Palantir: ping google.com -> Harus Reply.
@@ -161,3 +162,4 @@ apt install netcat curl -y
 echo "nameserver 10.91.1.195" > /etc/resolv.conf
 
 curl -I palantir.arda.local
+```
