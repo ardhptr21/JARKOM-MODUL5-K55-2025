@@ -112,8 +112,6 @@ Karena node Server dan Router dalam topologi ini menggunakan **IP Statis** dan t
 
 ---
 
-## Misi 1: Membangun Infrastruktur Layanan
-
 ### Soal 3: Konfigurasi DNS Zone (Arda Local)
 
 **Deskripsi Soal:**
@@ -148,6 +146,21 @@ Mengaktifkan layanan Web Server pada node **Palantir** dan **IronHills**. Kedua 
 
 **Validasi:**
 Validasi dilakukan dengan mengecek respon HTTP server dari Client (**Elendil**) menggunakan domain `palantir.arda.local`. Server merespons dengan status `200 OK` dan menampilkan konten identitas server, membuktikan Web Server dan DNS berjalan sinkron.
+
+```bash
+
+# 1. Paksa DNS ke Google (agar download lancar)
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+# 2. Install Netcat & Curl (Alat tempur validasi)
+apt update
+apt install netcat curl -y
+
+# 3. Kembalikan DNS ke Narya
+echo "nameserver 10.91.1.195" > /etc/resolv.conf
+
+curl -I palantir.arda.local
+```
 
 ![Validasi Web Server](/assets/cek_web_server.png)
 
@@ -185,3 +198,81 @@ Tes koneksi internet dilakukan dengan melakukan `ping google.com` dari Router Ca
 
 ![Validasi Ping Internet](/assets/test_ping_google_di_moria.png)
 
+
+
+---
+
+### Soal 2: Keamanan Vilya (Blocking Ping)
+
+**Deskripsi Soal:**
+Node **Vilya** (DHCP Server) harus dilindungi agar tidak dapat mendeteksi atau merespons permintaan Ping (ICMP Echo Request) dari node manapun. Namun, terdapat dua syarat mutlak yang harus dipenuhi:
+1.  **Akses Internet Terjaga:** Vilya tetap harus bisa mengakses internet (melakukan ping ke luar).
+2.  **Layanan DHCP Aktif:** Fungsi utama Vilya sebagai DHCP Server tidak boleh terganggu; client harus tetap bisa meminta IP Address.
+
+**Cara Mengerjakan:**
+Kami menggunakan `iptables` pada Vilya dengan logika sebagai berikut:
+1.  **Instalasi:** Menginstall paket `iptables` (menggunakan metode *Sandwich DNS* untuk akses repositori).
+2.  **Blokir Ping Masuk:** Menambahkan aturan pada chain `INPUT` untuk men-DROP paket protokol ICMP dengan tipe `echo-request`. Ini membuat Vilya "bisu" saat di-ping.
+3.  **Stateful Inspection:** Menambahkan aturan untuk menerima paket dengan status `ESTABLISHED` atau `RELATED`. Hal ini penting agar saat Vilya melakukan ping ke Google, paket balasan (Echo Reply) dari Google tetap diterima.
+4.  **Kebijakan Default:** Karena kami hanya memblokir ICMP spesifik, lalu lintas lain (seperti UDP port 67/68 untuk DHCP) tetap diizinkan lewat secara default.
+
+**Validasi:**
+
+**A. Validasi Akses Internet Vilya**
+Pengujian dilakukan langsung di terminal **Vilya** dengan melakukan `ping google.com`. Hasilnya **Reply**, membuktikan bahwa firewall mengizinkan paket balasan masuk (Stateful).
+
+![Validasi Vilya Ping Google](/assets/misi2no2_bisa_ping_di_vilya.png)
+
+**B. Validasi Blocking Ping dari Client**
+Pengujian dilakukan dari Client **Elendil** dengan mencoba ping ke IP Vilya (`10.91.1.194`). Hasilnya **100% Packet Loss**, membuktikan bahwa Vilya menolak permintaan ping yang masuk.
+
+![Validasi Ping Vilya dari Elendil](/assets/misi2no2_ping_vilya_dari_elendil.png)
+
+**C. Validasi Layanan DHCP**
+Pengujian fungsionalitas DHCP dilakukan dengan me-restart koneksi network pada **Elendil**. Hasilnya, client tetap berhasil mendapatkan IP Address (`Lease of 10.91.0.2 obtained`), membuktikan firewall tidak memblokir port DHCP.
+
+![Validasi Restart Elendil DHCP](/assets/misi2no2_restart_elendil_untuk_dpt_ip.png)
+
+
+---
+
+### Soal 3: Isolasi Narya (DNS Security)
+
+**Deskripsi Soal:**
+Node **Narya** bertindak sebagai DNS Server yang menyimpan informasi pemetaan IP penting. Demi keamanan:
+* **Aturan:** Akses ke layanan DNS (Port 53) pada Narya hanya diizinkan untuk **Vilya** (DHCP Server). Akses dari node lain (Client maupun Router) harus diblokir sepenuhnya.
+* **Tujuan:** Mencegah potensi *DNS Snooping* atau serangan dari node yang tidak terotorisasi.
+
+**Cara Mengerjakan:**
+Kami menggunakan firewall `iptables` pada node Narya dengan strategi *Whitelist* (Izinkan satu, tolak sisanya):
+1.  **Persiapan:** Menginstall `iptables` dan `netcat-openbsd` untuk keperluan konfigurasi dan pengujian.
+2.  **Whitelist (Vilya):** Menambahkan aturan `ACCEPT` pada chain INPUT untuk paket protokol UDP dan TCP yang menuju port 53, KHUSUS jika *source IP*-nya adalah IP Vilya (`10.91.1.194`).
+3.  **Blacklist (Global):** Menambahkan aturan `DROP` untuk semua paket lain yang menuju port 53 (baik UDP maupun TCP).
+4.  **Verifikasi:** Menggunakan perintah `iptables -L -v` untuk memastikan aturan telah terpasang dan menghitung paket yang lewat.
+
+**Validasi:**
+
+**A. Validasi Konfigurasi Firewall (Narya)**
+Pengecekan tabel aturan di Narya menunjukkan bahwa rule `ACCEPT` untuk source Vilya dan rule `DROP` untuk source *anywhere* telah aktif.
+
+![Validasi Firewall Narya](/assets/misi2no3_set_firewall_narya.png)
+
+**B. Validasi Akses Legal (Vilya)**
+Pengujian konektivitas menggunakan `netcat` dari **Vilya** ke port 53 Narya.
+* **Hasil:** `Succeeded!`. Koneksi berhasil karena IP Vilya terdaftar dalam whitelist.
+
+![Validasi Netcat Vilya](/assets/misi2no3_nc_vilya.png)
+
+**C. Validasi Akses Ilegal (Elendil)**
+Pengujian konektivitas dari Client **Elendil** ke port 53 Narya.
+* **Hasil:** `Connection timed out`. Koneksi gagal karena paket dibuang (DROP) oleh firewall, membuktikan isolasi berhasil.
+
+![Validasi Netcat Elendil](/assets/misi2no3_nc_elendil.png)
+
+Cek Counter di Narya: Setelah Elendil mencoba connect, cek di Narya:
+
+```bash
+iptables -L -v
+```
+
+![cek narya](/assets/misi2no3_cek_narya.png)
