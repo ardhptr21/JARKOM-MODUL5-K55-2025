@@ -1,5 +1,8 @@
 #!/bin/bash
 
+apt-get update
+apt-get install iptables rsyslog -y
+
 # 1. Bersihkan semua aturan lama
 iptables -F
 iptables -X

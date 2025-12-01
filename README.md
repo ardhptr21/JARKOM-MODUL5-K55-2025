@@ -348,3 +348,40 @@ Waktu server Palantir diubah menjadi pukul 20:00 malam (`Wed Nov 29 20:00:00 UTC
 Berikut adalah dokumentasi manipulasi waktu pada server Palantir untuk keperluan validasi.
 
 ![Manipulasi Waktu Palantir](/assets/misi2no5_set_date.png)
+
+
+---
+
+### Soal 6: Proteksi Port Scanning Palantir
+
+**Deskripsi Soal:**
+Client **Elendil** dicurigai melakukan aktivitas pengumpulan informasi (*Reconnaissance*) terhadap server **Palantir**. Kami diminta untuk menerapkan mekanisme pertahanan aktif pada firewall Palantir dengan ketentuan:
+* **Deteksi:** Memantau aktivitas koneksi baru pada rentang port 1-100.
+* **Trigger:** Jika satu IP melakukan lebih dari 15 koneksi baru dalam kurun waktu 20 detik.
+* **Tindakan:** Memblokir seluruh akses (Ping, Netcat, Curl) dari IP penyerang tersebut.
+* **Logging:** Mencatat aktivitas serangan ke dalam log sistem dengan prefix khusus `PORT_SCAN_DETECTED`.
+
+**Cara Mengerjakan:**
+Kami memanfaatkan fitur *Stateful Inspection* dan modul `recent` pada `iptables` di server Palantir dengan logika pertahanan bertingkat:
+1.  **Persiapan:** Menginstall paket `iptables` dan `rsyslog` untuk manajemen firewall dan logging.
+2.  **Trap (Jebakan):** Membuat aturan untuk "menandai" setiap IP yang mencoba membuat koneksi baru (*NEW*) ke port 1-100 dan memasukkannya ke dalam daftar pantau sementara.
+3.  **Threshold Check:** Mengecek daftar pantau. Jika sebuah IP terdeteksi melakukan *hit* lebih dari 15 kali dalam 20 detik, paket akan dilempar ke *chain* khusus.
+4.  **Log & Drop:** Pada *chain* khusus tersebut, sistem akan mencatat log kernel kemudian membuang (*DROP*) paket.
+5.  **Blacklist:** Menambahkan aturan prioritas utama untuk memblokir total traffic dari IP yang sudah masuk dalam daftar *blacklist* tersebut.
+
+**Validasi:**
+
+**A. Validasi Konfigurasi Firewall**
+Pengecekan pada server Palantir menunjukkan bahwa aturan `iptables` dengan modul `recent` (untuk menghitung *seconds* dan *hitcount*) telah berhasil terpasang dan siap memfilter paket.
+
+![Validasi Setup Firewall Palantir](/assets/misi2no6_setup_palantir.png)
+
+**B. Simulasi Serangan (Attacker: Elendil)**
+Kami menjalankan simulasi serangan menggunakan tool `nmap` dari Client Elendil untuk memindai 100 port pertama pada Palantir. Hasil scan menunjukkan port dalam status *ignored/filtered*, menandakan firewall telah mendeteksi anomali trafik dan mulai memblokir respons.
+
+![Validasi Nmap dari Elendil](/assets/misi2no6_nmap_elendil.png)
+
+**C. Validasi Logging Sistem**
+Pengecekan log sistem (`dmesg`) pada server Palantir menunjukkan adanya catatan dengan prefix `PORT_SCAN_DETECTED`. Ini membuktikan bahwa mekanisme deteksi dan pencatatan serangan telah berfungsi sesuai skenario.
+
+![Validasi Log Palantir](/assets/misi2no6_log_palantir.png)
