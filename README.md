@@ -101,5 +101,63 @@ Berikut adalah lingkaran subnet pada topologi
 ![subnet topologi](/assets/VLSM.png)
 
 
+---
 
+### Soal 3: Konfigurasi DNS Zone (Arda Local)
 
+**Deskripsi Soal:**
+Mengonfigurasi node **Narya** sebagai DNS Server Utama (Master) untuk melayani resolusi domain lokal `arda.local`. Skema domain yang diminta adalah:
+* `palantir.arda.local` → Mengarah ke IP Palantir (`10.91.1.234`).
+* `ironhills.arda.local` → Mengarah ke IP IronHills (`10.91.1.218`).
+* `www.arda.local` → CNAME (Alias) ke `arda.local`.
+
+**Langkah Pengerjaan:**
+1.  **Instalasi:** Menginstall paket `bind9` pada Narya.
+2.  **Definisi Zone:** Menambahkan konfigurasi zone master baru pada file `/etc/bind/named.conf.local`.
+3.  **Database Domain:** Membuat file konfigurasi Forward Zone (`db.arda.local`) untuk memetakan nama domain ke alamat IP yang sesuai.
+4.  **Forwarder:** Menambahkan DNS Google (`8.8.8.8`) sebagai forwarder agar Narya tetap bisa mengakses internet luar (untuk kebutuhan update paket).
+
+**Hasil Konfigurasi (Script Narya):**
+
+```bash
+# 1. Definisi Zone Master pada /etc/bind/named.conf.local
+zone "arda.local" {
+    type master;
+    file "/etc/bind/db.arda.local";
+};
+
+# 2. Isi Database Domain pada /etc/bind/db.arda.local
+; BIND data file for arda.local
+$TTL    604800
+@       IN      SOA     arda.local. root.arda.local. (
+                              2         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                      2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      arda.local.
+@       IN      A       10.91.1.195  ; IP Narya
+www     IN      CNAME   arda.local.
+palantir    IN  A       10.91.1.234  ; IP Web Server 1
+ironhills   IN  A       10.91.1.218  ; IP Web Server 2
+
+**Validasi:**
+1. Cek Ping Internet (Misi 2 No 1): Di Palantir: ping google.com -> Harus Reply.
+
+2. Cek Domain (Misi 1 No 3): Di Client Elendil: ping palantir.arda.local -> Harus Reply dari 10.91.1.234.
+
+3. Jalankan perintah ini di Elendil
+
+```bash
+# 1. Paksa DNS ke Google (agar download lancar)
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+# 2. Install Netcat & Curl (Alat tempur validasi)
+apt update
+apt install netcat curl -y
+
+# 3. Kembalikan DNS ke Narya
+echo "nameserver 10.91.1.195" > /etc/resolv.conf
+
+curl -I palantir.arda.local
