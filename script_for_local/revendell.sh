@@ -5,6 +5,8 @@ echo "nameserver 8.8.8.8" > /etc/resolv.conf
 apt update
 apt install isc-dhcp-relay -y
 
+sysctl -w net.ipv4.ip_forward=1
+
 cat << EOF > /etc/default/isc-dhcp-relay
 SERVERS="10.91.1.194"
 INTERFACESv4="eth1 eth0"

@@ -33,3 +33,27 @@ iptables -A INPUT -p tcp --dport 80 -j DROP
 echo "Waktu Server Saat Ini:"
 date
 iptables -L -v
+
+
+
+
+# ==========================Jika ada error saat validasi curl: (7) Failed to connect to ironhills.arda.local port 80 after 4 ms.=============================================================
+# maka lakukan Lakukan ini di terminal IronHills:
+service nginx restart
+service nginx status
+# Pastikan statusnya "Running" atau "Active"
+iptables -L -v
+# Pastikan ada rule ACCEPT untuk source 10.91.0.0/24 (Elendil)
+date
+# Harus output hari Saturday
+
+# ==========================Testing Akses Web di Hari Sabtu=============================================================
+# Set ke Sabtu ===ironhills=== (misal 4 Nov 2023)
+date -s "2023-11-04 10:00:00"
+# lalu dari ===elendil=== (sukses)
+curl -I ironhills.arda.local
+
+# Set ke Rabu ===ironhills=== (misal 1 Nov 2023)
+date -s "2023-11-01 10:00:00"
+# lalu dari ===elendil=== (gagal)
+curl -I ironhills.arda.local

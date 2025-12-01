@@ -309,3 +309,42 @@ Saat waktu server IronHills diubah ke hari **Sabtu** (`Sat Nov 4`), Client **Ele
 * **Hasil:** `HTTP/1.1 200 OK`. Firewall mengizinkan akses karena memenuhi syarat IP dan Hari.
 
 ![Validasi Sukses Hari Sabtu](/assets/misi2no4_tes_curl_di_elendil.png)
+
+
+---
+
+### Soal 5: Pembatasan Akses Palantir (Ras & Waktu)
+
+**Deskripsi Soal:**
+Server **Palantir** digunakan sebagai tempat latihan pasukan, namun aksesnya dibatasi secara ketat berdasarkan Ras (Subnet Asal) dan Waktu latihan yang telah ditentukan:
+* **Faksi Elf** (Gilgalad & Cirdan): Hanya diizinkan mengakses pada pukul **07.00 - 15.00**.
+* **Faksi Manusia** (Elendil & Isildur): Hanya diizinkan mengakses pada pukul **17.00 - 23.00**.
+* Akses di luar jam tersebut atau lintas faksi harus diblokir.
+
+**Cara Mengerjakan:**
+Kami mengimplementasikan aturan Firewall pada Palantir menggunakan `iptables` dengan modul `time`:
+1.  **Instalasi:** Menginstall paket `iptables` (metode *Sandwich DNS*).
+2.  **Rule Elf:** Menambahkan aturan `ACCEPT` untuk paket HTTP (TCP 80) yang berasal dari Subnet Elf (`10.91.1.0/25`) KHUSUS pada rentang waktu `--timestart 07:00 --timestop 15:00`.
+3.  **Rule Manusia:** Menambahkan aturan `ACCEPT` untuk paket HTTP yang berasal dari Subnet Manusia (`10.91.0.0/24`) KHUSUS pada rentang waktu `--timestart 17:00 --timestop 23:00`.
+4.  **Default Drop:** Menambahkan aturan `DROP` di akhir rantai INPUT untuk membuang semua paket web yang tidak memenuhi kriteria waktu dan subnet di atas.
+
+**Validasi:**
+
+**A. Simulasi Waktu Pagi (08:00)**
+Waktu server Palantir diubah menjadi pukul 08:00 pagi (`Wed Nov 29 08:00:00 UTC 2023`).
+* **Cirdan (Elf):** Berhasil mengakses (`HTTP 200 OK`).
+* **Elendil (Manusia):** Gagal mengakses (`Connection timed out`), karena belum masuk jam operasional Manusia.
+
+![Validasi Skenario Pagi (Cirdan Sukses)](/assets/misi2no5_cirdan.png)
+
+**B. Simulasi Waktu Malam (20:00)**
+Waktu server Palantir diubah menjadi pukul 20:00 malam (`Wed Nov 29 20:00:00 UTC 2023`).
+* **Elendil (Manusia):** Berhasil mengakses (`HTTP 200 OK`).
+* **Cirdan (Elf):** Gagal mengakses (`Connection timed out`), karena jam operasional Elf sudah habis.
+
+![Validasi Skenario Malam (Elendil Sukses)](/assets/misi2no5_elendil.png)
+
+**Bukti Perubahan Waktu Server:**
+Berikut adalah dokumentasi manipulasi waktu pada server Palantir untuk keperluan validasi.
+
+![Manipulasi Waktu Palantir](/assets/misi2no5_set_date.png)
