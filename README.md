@@ -276,3 +276,36 @@ iptables -L -v
 ```
 
 ![cek narya](/assets/misi2no3_cek_narya.png)
+
+---
+
+### Soal 4: Pembatasan Akses Waktu IronHills
+
+**Deskripsi Soal:**
+Server **IronHills** dicurigai memiliki aktivitas mencurigakan. Berdasarkan dekrit Raja, akses ke web server ini harus diperketat dengan aturan:
+* **Waktu Akses:** Hanya diizinkan pada **Akhir Pekan (Sabtu & Minggu)**.
+* **Pengguna Sah:** Hanya Faksi **Kurcaci & Pengkhianat** (Durin & Khamul) serta **Manusia** (Elendil & Isildur) yang boleh masuk. Ras Elf (Gilgalad & Cirdan) dilarang.
+* **Simulasi:** "Hari ini adalah Rabu", sehingga akses saat ini harus tertolak.
+
+**Cara Mengerjakan:**
+Kami menggunakan firewall `iptables` dengan modul `-m time` pada server IronHills:
+1.  **Instalasi:** Menginstall `iptables` menggunakan metode *Sandwich DNS*.
+2.  **Definisi Rule (Whitelist Waktu & IP):** Menambahkan aturan `ACCEPT` untuk protokol TCP port 80 (HTTP) hanya jika:
+    * Source IP berasal dari subnet yang diizinkan (Manusia `10.91.0.0/24`, Kurcaci `10.91.1.128/26`, Khamul `10.91.1.200/29`).
+    * Waktu akses adalah hari Sabtu atau Minggu (`--weekdays Sat,Sun`).
+3.  **Default Drop:** Menambahkan aturan `DROP` di akhir untuk memblokir semua akses lain yang tidak memenuhi syarat di atas (misal akses di hari Senin-Jumat atau dari IP Elf).
+4.  **Manipulasi Waktu:** Menggunakan perintah `date -s` untuk mengubah waktu sistem server guna memvalidasi skenario (Hari Rabu vs Hari Sabtu).
+
+**Validasi:**
+
+**A. Validasi Akses Gagal (Skenario Hari Rabu)**
+Saat waktu server IronHills diset ke hari **Rabu** (`Wed Nov 1`), Client **Elendil** mencoba mengakses web server.
+* **Hasil:** `Failed to connect / Connection timed out`. Firewall berhasil memblokir akses karena melanggar aturan waktu.
+
+![Validasi Gagal Hari Rabu](/assets/misi2no4_set_date_ironhills.png)
+
+**B. Validasi Akses Sukses (Skenario Hari Sabtu)**
+Saat waktu server IronHills diubah ke hari **Sabtu** (`Sat Nov 4`), Client **Elendil** mencoba mengakses kembali.
+* **Hasil:** `HTTP/1.1 200 OK`. Firewall mengizinkan akses karena memenuhi syarat IP dan Hari.
+
+![Validasi Sukses Hari Sabtu](/assets/misi2no4_tes_curl_di_elendil.png)
