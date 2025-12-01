@@ -100,16 +100,9 @@ Untuk memvisualisasikan hierarki pembagian dari blok IP induk `10.91.0.0`, berik
 Berikut adalah lingkaran subnet pada topologi
 ![subnet topologi](/assets/VLSM.png)
 
-
 ---
 
-# Laporan Praktikum Modul 5: Jaringan Komputer - The Shadow of the East
-
-Laporan ini mendokumentasikan penyelesaian dan validasi untuk **Misi 1 (DNS & Web Server)** serta **Misi 2 (Konektivitas & NAT)**.
-
----
-
-### ⚠️ Catatan Penting: Metode Instalasi "Sandwich DNS"
+### ⚠️ Catatan Penting sebelum ke soal misi 1 no 3 dan seterusnya: Metode Instalasi "Sandwich DNS"
 
 Karena node Server dan Router dalam topologi ini menggunakan **IP Statis** dan tidak memiliki konfigurasi DNS default, node tersebut tidak dapat mengunduh paket dari internet saat pertama kali dijalankan. Untuk mengatasi hal ini tanpa merusak konfigurasi akhir, kami menggunakan metode **"Sandwich DNS"** pada setiap pengerjaan:
 
@@ -191,3 +184,4 @@ Tes konektivitas dilakukan dengan melakukan `ping` dari ujung ke ujung, yaitu da
 Tes koneksi internet dilakukan dengan melakukan `ping google.com` dari Router Cabang (**Moria**). Hasil reply membuktikan bahwa konfigurasi SNAT di Osgiliath bekerja dengan baik dan DNS Forwarding di Narya mampu menerjemahkan domain publik.
 
 ![Validasi Ping Internet](/assets/test_ping_google_di_moria.png)
+
