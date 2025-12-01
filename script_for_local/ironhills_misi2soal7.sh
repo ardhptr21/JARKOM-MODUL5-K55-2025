@@ -1,34 +1,25 @@
 #!/bin/bash
+# Revisi Misi 2 No 7: Hard Limit Connection
 
-# Pastikan Nginx, IPTables, dan Apache Benchmark terinstall
-grep -qF 'nameserver 10.91.1.195' /etc/resolv.conf || echo 'nameserver 10.91.1.195' >> /etc/resolv.conf
-apt-get update
-apt-get install nginx iptables apache2-utils -y
-service nginx restart
-
-# Set Waktu ke Sabtu (Sesuai Soal agar akses diizinkan dulu secara waktu)
-date -s "2023-11-04 10:00:00"   
-
-# Reset Firewall
+# 1. Reset
 iptables -F
 iptables -X
 
-# --- RULE SOAL 7: Batasi Koneksi Maksimal 3 per IP ---
-# Jika satu IP membuka koneksi ke-4 (atau lebih) secara bersamaan, paketnya di-DROP
-iptables -A INPUT -p tcp --syn --dport 80 -m connlimit --connlimit-above 3 -j DROP
+# 2. Set Waktu ke SABTU
+date -s "2023-11-04 10:00:00"
 
-# Izinkan akses web normal (jika koneksi <= 3)
-iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+# 3. RULE UTAMA (LIMIT) - LEBIH KETAT
+# Kita pakai limit 2 (bukan 3) untuk testing agar lebih mudah gagal.
+# Dan kita reject packet SYN baru.
+iptables -A INPUT -p tcp --syn --dport 80 -m connlimit --connlimit-above 2 -j REJECT --reject-with tcp-reset
 
-# Izinkan SSH/Ping (biar tidak terkunci)
-iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-iptables -A INPUT -p icmp -j ACCEPT
+# 4. RULE AKSES (Whitelist IP)
+iptables -A INPUT -s 10.91.0.0/24 -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -s 10.91.1.128/26 -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -s 10.91.1.200/29 -p tcp --dport 80 -j ACCEPT
 
-# Cek Rules
+# 5. Default Drop
+iptables -A INPUT -p tcp --dport 80 -j DROP
+
+# 6. Cek
 iptables -L -v
-
-
-
-# Ngebug? coba Reset couter
-# iptables -Z
-# iptables -L -v -n

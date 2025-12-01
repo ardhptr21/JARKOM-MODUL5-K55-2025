@@ -1,20 +1,36 @@
-# bebas pilih script mana aja
-# =============================Script dari Ardhi==========================================================
+#!/bin/bash
+# Misi 3: Isolasi Total Khamul (The Jail of Barad-dûr)
 
-iptables -A INPUT -d 10.91.1.200/29 -j DROP
-iptables -A OUTPUT -d 10.91.1.200/29 -j DROP
+# 1. Sandwich DNS (Standard Procedure)
+grep -qF 'nameserver 8.8.8.8' /etc/resolv.conf || echo 'nameserver 8.8.8.8' >> /etc/resolv.conf
+apt-get update
+apt-get install iptables netcat-openbsd -y
 
-# =============================Script dari GEMINI untuk winderland==========================================================
-# --- MISI 3: ISOLASI KHAMUL ---
-# Subnet Khamul: 10.91.1.200/29
+# 2. Definisi Subnet (Biar tidak salah tembak)
+# Khamul (TARGET) : 10.91.1.200/29
+# Durin (AMAN)    : 10.91.1.128/26
 
-# 1. Blokir paket DARI Khamul (Apapun tujuannya)
-iptables -A FORWARD -s 10.91.1.200/29 -j DROP
+# 3. Konfigurasi Firewall (Filter Table)
+# Kita Flush filter table untuk menghapus sisa konfigurasi lama, 
+# TAPI biarkan NAT table (Misi 2 No 8) apa adanya atau dihapus sesuai kebutuhan.
+# Di sini kita asumsikan isolasi total, jadi kita fokus Block.
+iptables -F
 
-# 2. Blokir paket MENUJU Khamul (Dari manapun asalnya)
-iptables -A FORWARD -d 10.91.1.200/29 -j DROP
+# --- RULE UTAMA: BLOCK KHAMUL ---
+# Menggunakan -I (Insert) agar aturan ini ditaruh PALING ATAS (Prioritas Tertinggi).
 
-# Cek Rules
+# Blokir paket DARI Khamul (Outgoing)
+iptables -I FORWARD -s 10.91.1.200/29 -j DROP
+
+# Blokir paket MENUJU Khamul (Incoming)
+iptables -I FORWARD -d 10.91.1.200/29 -j DROP
+
+# Log untuk membuktikan pemblokiran (Opsional, biar keren di laporan)
+iptables -I FORWARD -s 10.91.1.200/29 -j LOG --log-prefix "KHAMUL_BLOCKED_OUT: "
+iptables -I FORWARD -d 10.91.1.200/29 -j LOG --log-prefix "KHAMUL_BLOCKED_IN: "
+
+# 4. Cek Rules
 iptables -L FORWARD -v -n
 
-
+# 5. Restore DNS
+echo "nameserver 10.91.1.195" > /etc/resolv.conf

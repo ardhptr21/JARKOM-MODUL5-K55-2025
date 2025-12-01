@@ -385,3 +385,109 @@ Kami menjalankan simulasi serangan menggunakan tool `nmap` dari Client Elendil u
 Pengecekan log sistem (`dmesg`) pada server Palantir menunjukkan adanya catatan dengan prefix `PORT_SCAN_DETECTED`. Ini membuktikan bahwa mekanisme deteksi dan pencatatan serangan telah berfungsi sesuai skenario.
 
 ![Validasi Log Palantir](/assets/misi2no6_log_palantir.png)
+
+---
+
+### Soal 7: Pencegahan Overload (Connection Limiting)
+
+**Deskripsi Soal:**
+Pada hari Sabtu, akses ke server **IronHills** diperkirakan akan sangat padat. Untuk mencegah server *down* akibat beban berlebih (*Overload*) atau serangan DoS sederhana, diberlakukan aturan ketat:
+* **Batasan:** Setiap IP Address (Source IP) hanya boleh membuka maksimal **3 koneksi aktif** secara bersamaan ke port HTTP (80).
+* **Tindakan:** Koneksi ke-4 dan seterusnya dari IP yang sama harus ditolak secara paksa.
+
+**Cara Mengerjakan:**
+Kami menggunakan modul `connlimit` pada firewall `iptables` di server IronHills dengan langkah-langkah:
+1.  **Persiapan:** Menginstall paket `iptables` dan `apache2-utils` (untuk kebutuhan *stress testing*) menggunakan metode *Sandwich DNS*.
+2.  **Rule Limiting (Prioritas Utama):** Menempatkan aturan pembatasan di baris paling atas (*Chain Input*). Aturan ini mendeteksi jika sebuah IP memiliki lebih dari 3 koneksi TCP aktif (`--connlimit-above 3`).
+3.  **Mekanisme Penolakan:** Jika batas terlampaui, paket tidak sekadar di-DROP (diam), melainkan di-REJECT dengan `tcp-reset`. Hal ini agar client penyerang segera mengetahui koneksinya diputus dan tidak membebani antrian server.
+4.  **Simulasi Waktu:** Mengatur waktu server ke hari Sabtu agar aturan akses (Allow) dari Misi sebelumnya terpenuhi, sehingga kita bisa fokus menguji limitasi koneksinya.
+
+**Validasi:**
+
+**A. Validasi Konfigurasi Firewall**
+Pengecekan pada server IronHills menunjukkan bahwa aturan `connlimit` telah terpasang di urutan pertama, sebelum aturan penerimaan paket (ACCEPT).
+
+![Validasi Setup Firewall IronHills](/assets/misi2no7_set_ironhiils.png)
+
+**B. Simulasi Stress Test (Attacker: Elendil)**
+Kami melakukan uji beban (*Stress Test*) dari Client Elendil menggunakan tool **Apache Benchmark (`ab`)**. Kami mencoba mengirim 1000 request dengan **20 koneksi bersamaan** (`-c 20`), jauh melebihi batas 3 koneksi yang diizinkan.
+* **Hasil:** `apr_socket_recv: Connection refused`.
+* **Analisis:** Tes terhenti seketika karena firewall IronHills mendeteksi jumlah koneksi dari Elendil melebihi batas dan langsung memutus koneksi (*Reset*). Ini membuktikan proteksi overload berhasil bekerja.
+
+![Validasi Stress Test Elendil](/assets/misi2no7_test_20_koneksi_bersama_elendil.png)
+
+---
+
+### Soal 8: Anomali Trafik ("Sihir Hitam" Redirect)
+
+**Deskripsi Soal:**
+Terdeteksi adanya anomali jaringan yang disebut sebagai "Sihir Hitam". Skenario yang terjadi adalah setiap paket data yang dikirim oleh **Vilya** (DHCP Server) dengan tujuan **Khamul** (Client Pengkhianat), secara otomatis dibelokkan menuju **IronHills** (Web Server). Kami diminta untuk mereplikasi anomali ini menggunakan konfigurasi NAT.
+
+* **Pengirim:** Vilya (`10.91.1.194`)
+* **Tujuan Asli:** Khamul (`10.91.1.202`)
+* **Tujuan Akhir (Belokan):** IronHills (`10.91.1.218`)
+
+**Cara Mengerjakan:**
+Kami melakukan konfigurasi manipulasi NAT pada router **Wilderland** (Gateway dari subnet Khamul) dengan dua langkah krusial:
+1.  **DNAT (Destination NAT):** Pada chain `PREROUTING`, kami membuat aturan untuk mendeteksi paket dari Vilya yang menuju Khamul. Tujuan paket tersebut kemudian diubah (*Redirect*) menjadi IP IronHills.
+2.  **SNAT (Source NAT):** Pada chain `POSTROUTING`, kami mengubah alamat pengirim paket yang telah dibelokkan tadi menjadi IP Wilderland.
+    * *Alasan Teknis:* Langkah ini wajib dilakukan untuk memperbaiki jalur routing balik (*Return Path*). Tanpa SNAT, IronHills akan membalas langsung ke Vilya (bypass Wilderland), yang menyebabkan Vilya menolak paket tersebut karena alamat pengirim tidak sesuai dengan yang dituju. Dengan SNAT, IronHills membalas ke Wilderland, dan Wilderland meneruskannya kembali ke Vilya dengan identitas yang benar.
+
+**Validasi:**
+
+**A. Validasi Konfigurasi NAT (Wilderland)**
+Pengecekan tabel NAT pada router Wilderland menunjukkan adanya aturan DNAT (untuk membelokkan tujuan) dan SNAT (untuk menyamarkan pengirim) yang telah aktif.
+
+![Validasi Konfigurasi Wilderland](/assets/misi2no8_set_winderland.png)
+
+**B. Simulasi Pengiriman Pesan (Netcat)**
+Kami melakukan pembuktian menggunakan tool `netcat`:
+1.  **IronHills** bersiap menerima pesan (*Listening*).
+2.  **Vilya** mengirim pesan teks dengan tujuan IP **Khamul**.
+3.  **Hasil:** Pesan yang dikirim ke IP Khamul **muncul di terminal IronHills**. Ini membuktikan bahwa lalu lintas data telah berhasil dibajak dan dibelokkan sesuai skenario.
+
+![Validasi Redirect Vilya ke IronHills](/assets/misi2no8_vilya_ke_khamul_tapi_belok_ironhills.png)
+
+
+---
+
+## Misi 3: Isolasi Sang Nazgûl (Final Lockdown)
+
+### Soal 1: Isolasi Total Khamul
+
+**Deskripsi Soal:**
+Mengetahui pengkhianatan Khamul, Aliansi memutuskan untuk mengisolasi total client **Khamul** dari jaringan.
+* **Tujuan:** Memblokir seluruh lalu lintas **masuk dan keluar** dari Khamul.
+* **Syarat:** Isolasi ini tidak boleh berdampak pada tetangganya, **Durin**, yang berada di router yang sama (Wilderland).
+
+**Cara Mengerjakan:**
+Kami menerapkan aturan firewall pada router **Wilderland** menggunakan *Filter Table*:
+1.  **Pembersihan:** Menghapus aturan NAT ("Sihir Hitam") yang dibuat pada Misi 2 No 8 agar routing kembali normal sebelum diblokir.
+2.  **Blokir Keluar (Outgoing):** Menambahkan aturan `DROP` pada chain `FORWARD` untuk semua paket yang berasal dari *Source IP* Subnet Khamul (`10.91.1.200/29`).
+3.  **Blokir Masuk (Incoming):** Menambahkan aturan `DROP` pada chain `FORWARD` untuk semua paket yang menuju *Destination IP* Subnet Khamul.
+4.  **Logging:** Menambahkan pencatatan log kernel untuk setiap paket yang diblokir sebagai bukti forensik.
+
+**Validasi:**
+
+**A. Validasi Konfigurasi Firewall (Wilderland)**
+Pengecekan tabel firewall di Wilderland menunjukkan aturan `DROP` sudah terpasang untuk kedua arah trafik Khamul, sementara tabel NAT sudah kosong.
+
+![Validasi Firewall Wilderland](/assets/misi3no1_set_wilderland.png)
+
+**B. Validasi Isolasi Keluar (Khamul)**
+Kami mencoba melakukan ping dari Khamul ke internet (Google) dan ke tetangga (Durin).
+* **Hasil:** `Temporary failure in name resolution` (karena DNS diblokir) dan `100% packet loss` (karena ICMP diblokir). Khamul terisolasi total.
+
+![Validasi Isolasi Khamul](/assets/misi3no1_ping_khamul.png)
+
+**C. Validasi Keamanan Tetangga (Durin)**
+Kami memastikan Durin tidak terkena dampak blokir dengan melakukan ping ke Google.
+* **Hasil:** `Reply` (Sukses). Durin tetap terhubung ke jaringan dengan normal.
+
+![Validasi Koneksi Durin](/assets/misi3no1_ping_google_durin.png)
+
+**D. Validasi Isolasi Masuk (Vilya)**
+Kami mencoba menghubungi Khamul dari luar (Vilya).
+* **Hasil:** `100% packet loss`. Tidak ada paket yang bisa masuk ke jaringan Khamul.
+
+![Validasi Isolasi dari Vilya](/assets/misi3no1_ping_vilya.png)
