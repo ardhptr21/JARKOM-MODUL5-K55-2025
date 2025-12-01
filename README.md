@@ -103,63 +103,91 @@ Berikut adalah lingkaran subnet pada topologi
 
 ---
 
+# Laporan Praktikum Modul 5: Jaringan Komputer - The Shadow of the East
+
+Laporan ini mendokumentasikan penyelesaian dan validasi untuk **Misi 1 (DNS & Web Server)** serta **Misi 2 (Konektivitas & NAT)**.
+
+---
+
+### ⚠️ Catatan Penting: Metode Instalasi "Sandwich DNS"
+
+Karena node Server dan Router dalam topologi ini menggunakan **IP Statis** dan tidak memiliki konfigurasi DNS default, node tersebut tidak dapat mengunduh paket dari internet saat pertama kali dijalankan. Untuk mengatasi hal ini tanpa merusak konfigurasi akhir, kami menggunakan metode **"Sandwich DNS"** pada setiap pengerjaan:
+
+1.  **Awal:** Mengubah sementara konfigurasi DNS ke Google (`8.8.8.8`).
+2.  **Proses:** Melakukan update repository dan instalasi paket yang dibutuhkan (seperti `nginx`, `bind9`, `isc-dhcp-relay`).
+3.  **Akhir:** Mengembalikan konfigurasi DNS ke IP Narya (`10.91.1.195`) agar node dapat mengenali domain lokal `arda.local`.
+
+---
+
+## Misi 1: Membangun Infrastruktur Layanan
+
 ### Soal 3: Konfigurasi DNS Zone (Arda Local)
 
 **Deskripsi Soal:**
-Mengonfigurasi node **Narya** sebagai DNS Server Utama (Master) untuk melayani resolusi domain lokal `arda.local`. Skema domain yang diminta adalah:
+Kami diminta mengonfigurasi node **Narya** sebagai DNS Server Utama (Master) untuk melayani resolusi domain lokal `arda.local`. Skema domain yang harus dibuat adalah:
 * `palantir.arda.local` → Mengarah ke IP Palantir (`10.91.1.234`).
 * `ironhills.arda.local` → Mengarah ke IP IronHills (`10.91.1.218`).
 * `www.arda.local` → CNAME (Alias) ke `arda.local`.
 
-**Langkah Pengerjaan:**
-1.  **Instalasi:** Menginstall paket `bind9` pada Narya.
-2.  **Definisi Zone:** Menambahkan konfigurasi zone master baru pada file `/etc/bind/named.conf.local`.
-3.  **Database Domain:** Membuat file konfigurasi Forward Zone (`db.arda.local`) untuk memetakan nama domain ke alamat IP yang sesuai.
-4.  **Forwarder:** Menambahkan DNS Google (`8.8.8.8`) sebagai forwarder agar Narya tetap bisa mengakses internet luar (untuk kebutuhan update paket).
-
-**Hasil Konfigurasi (Script Narya):**
-
-```bash
-# 1. Definisi Zone Master pada /etc/bind/named.conf.local
-zone "arda.local" {
-    type master;
-    file "/etc/bind/db.arda.local";
-};
-
-# 2. Isi Database Domain pada /etc/bind/db.arda.local
-; BIND data file for arda.local
-$TTL    604800
-@       IN      SOA     arda.local. root.arda.local. (
-                              2         ; Serial
-                         604800         ; Refresh
-                          86400         ; Retry
-                      2419200         ; Expire
-                         604800 )       ; Negative Cache TTL
-;
-@       IN      NS      arda.local.
-@       IN      A       10.91.1.195  ; IP Narya
-www     IN      CNAME   arda.local.
-palantir    IN  A       10.91.1.234  ; IP Web Server 1
-ironhills   IN  A       10.91.1.218  ; IP Web Server 2
-```
+**Cara Mengerjakan:**
+1.  Melakukan instalasi paket `bind9` pada node Narya.
+2.  Mendefinisikan Zone Master baru untuk `arda.local` pada konfigurasi Bind9.
+3.  Membuat file database forward zone yang memetakan nama domain ke alamat IP server yang sesuai.
+4.  Menambahkan konfigurasi *Forwarder* ke DNS Google (`8.8.8.8`) agar Narya tetap dapat melayani request ke internet luar (seperti `google.com`).
 
 **Validasi:**
-1. Cek Ping Internet (Misi 2 No 1): Di Palantir: ping google.com -> Harus Reply.
+Validasi dilakukan dari sisi Client (**Elendil**) dengan melakukan `ping` ke domain `palantir.arda.local`. Hasil validasi menunjukkan bahwa DNS Resolver Narya berhasil menerjemahkan domain tersebut ke IP Address Palantir yang benar.
 
-2. Cek Domain (Misi 1 No 3): Di Client Elendil: ping palantir.arda.local -> Harus Reply dari 10.91.1.234.
+![Validasi DNS Domain](/assets/cek_domain.png)
 
-3. Jalankan perintah ini di Elendil
+---
 
-```bash
-# 1. Paksa DNS ke Google (agar download lancar)
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
+### Soal 4: Konfigurasi Web Server
 
-# 2. Install Netcat & Curl (Alat tempur validasi)
-apt update
-apt install netcat curl -y
+**Deskripsi Soal:**
+Mengaktifkan layanan Web Server pada node **Palantir** dan **IronHills**. Kedua server ini harus dapat diakses menggunakan domain yang telah dikonfigurasi sebelumnya serta menampilkan halaman identitas diri yang unik untuk membedakan keduanya.
 
-# 3. Kembalikan DNS ke Narya
-echo "nameserver 10.91.1.195" > /etc/resolv.conf
+**Cara Mengerjakan:**
+1.  Menggunakan layanan **Nginx** sebagai Web Server.
+2.  Menerapkan metode *Sandwich DNS* untuk mengunduh paket Nginx dari internet.
+3.  Membuat halaman `index.html` kustom pada direktori `/var/www/html/` yang berisi identitas nama server (misal: "INI ADALAH PALANTIR").
+4.  Memastikan service Nginx berjalan dan port 80 terbuka.
 
-curl -I palantir.arda.local
-```
+**Validasi:**
+Validasi dilakukan dengan mengecek respon HTTP server dari Client (**Elendil**) menggunakan domain `palantir.arda.local`. Server merespons dengan status `200 OK` dan menampilkan konten identitas server, membuktikan Web Server dan DNS berjalan sinkron.
+
+![Validasi Web Server](/assets/cek_web_server.png)
+
+---
+
+## Misi 2: Membuka Gerbang Barat (Konektivitas & NAT)
+
+### Soal 1: Akses Internet, Routing, dan DHCP
+
+**Deskripsi Soal:**
+Membangun konektivitas jaringan secara menyeluruh di mana seluruh node (Client, Server, dan Router) dapat mengakses internet.
+* **Syarat 1 (NAT):** Router Utama (**Osgiliath**) wajib menggunakan **SNAT** (Source NAT) dan dilarang menggunakan *Masquerade*.
+* **Syarat 2 (DHCP):** Client harus mendapatkan IP Address secara otomatis (Dinamis) dari **Vilya** (DHCP Server).
+
+**Cara Mengerjakan:**
+1.  **Konfigurasi NAT (Osgiliath):** Menerapkan rule `iptables` dengan target `SNAT` pada chain POSTROUTING. Kami mengubah *source IP* paket yang berasal dari subnet lokal (`10.91.0.0/16`) menjadi IP Public eth0 Osgiliath saat menuju internet.
+2.  **IP Forwarding:** Mengaktifkan fitur forwarding (`net.ipv4.ip_forward=1`) pada seluruh router agar paket data dapat diteruskan antar-interface.
+3.  **DHCP Server (Vilya):** Mengonfigurasi subnet dan range IP untuk setiap client pada `isc-dhcp-server`.
+4.  **DHCP Relay:** Menginstall dan mengonfigurasi `isc-dhcp-relay` pada seluruh router cabang (Minastir, Moria, Rivendell, Wilderland, AnduinBanks) agar request DHCP dari client dapat diteruskan ke Vilya.
+
+**Validasi:**
+
+**A. Validasi Distribusi IP (DHCP)**
+Pengecekan dilakukan pada Client **Cirdan**. Hasilnya, client berhasil mendapatkan IP Address dinamis dari Vilya, membuktikan jalur Relay dan Server DHCP berfungsi.
+
+![Validasi DHCP Cirdan](/assets/ip_dibagikan_dhcp_di_cirdan.png)
+
+**B. Validasi Koneksi Antar Node (Routing)**
+Tes konektivitas dilakukan dengan melakukan `ping` dari ujung ke ujung, yaitu dari **Durin** ke **Cirdan**. Hasil reply menandakan tabel routing statis antar-subnet telah terkonfigurasi dengan benar.
+
+![Validasi Ping Antar Node](/assets/ping_durin_ke_cirdan.png)
+
+**C. Validasi Akses Internet (NAT)**
+Tes koneksi internet dilakukan dengan melakukan `ping google.com` dari Router Cabang (**Moria**). Hasil reply membuktikan bahwa konfigurasi SNAT di Osgiliath bekerja dengan baik dan DNS Forwarding di Narya mampu menerjemahkan domain publik.
+
+![Validasi Ping Internet](/assets/test_ping_google_di_moria.png)
